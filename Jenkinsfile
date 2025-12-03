@@ -9,6 +9,7 @@ pipeline {
         DOCKER_REGISTRY = 'docker.io' // Modifier selon votre registre (docker.io pour Docker Hub)
         IMAGE_NAME = 'khalilhl/student-management'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
+        PUSH_DOCKER = 'false' // Mettre à 'true' pour activer le push Docker (nécessite credentials)
     }
     
     // Pas de section triggers nécessaire pour les webhooks GitHub
@@ -58,8 +59,12 @@ pipeline {
         }
         
         stage('Push Image Docker') {
+            when {
+                expression { env.PUSH_DOCKER == 'true' }
+            }
             steps {
                 script {
+                    echo "Publication de l'image Docker dans le registre..."
                     withCredentials([usernamePassword(credentialsId: 'docker-registry-credentials', 
                                                      usernameVariable: 'DOCKER_USER', 
                                                      passwordVariable: 'DOCKER_PASS')]) {
@@ -68,7 +73,6 @@ pipeline {
                         def imageTag = "${IMAGE_NAME}:${IMAGE_TAG}"
                         def latestTag = "${IMAGE_NAME}:latest"
                         
-                        echo "Publication de l'image Docker dans le registre..."
                         sh "docker push ${imageTag}"
                         sh "docker push ${latestTag}"
                     }
