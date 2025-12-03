@@ -6,14 +6,16 @@ pipeline {
     }
     
     environment {
-        DOCKER_REGISTRY = 'docker.io' // Modifier selon votre registre (docker.io pour Docker Hub)
-        IMAGE_NAME = 'khalilhl/student-management'
+        DOCKER_REGISTRY = 'your-registry-url' // Exemple: docker.io/username ou registry.example.com
+        IMAGE_NAME = 'student-management'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
     }
     
-    // Pas de section triggers nécessaire pour les webhooks GitHub
-    // Les webhooks sont configurés côté GitHub et dans la configuration du job Jenkins
-    // (Build Triggers -> GitHub hook trigger for GITScm polling)
+    triggers {
+        // Polling SCM toutes les minutes pour détecter les nouveaux commits
+        // Plus fiable avec NGROK gratuit (évite la page d'avertissement qui bloque les webhooks)
+        pollSCM('* * * * *')
+    }
     
     stages {
         stage('GIT - Récupération du code') {
@@ -21,8 +23,9 @@ pipeline {
                 script {
                     echo 'Récupération des dernières mises à jour du dépôt Git...'
                 }
-                // Utilise checkout scm car le pipeline est configuré avec "Pipeline script from SCM"
-                checkout scm
+                git branch: 'master',
+                    url: 'https://github.com/khalilhl/Project_Devops.git',
+                    credentialsId: 'jenkins-github-credentials'
             }
         }
         
@@ -51,11 +54,8 @@ pipeline {
         stage('Build Image Docker') {
             steps {
                 script {
-                    def imageTag = "${IMAGE_NAME}:${IMAGE_TAG}"
-                    def latestTag = "${IMAGE_NAME}:latest"
-                    
-                    echo "Construction de l'image Docker: ${imageTag}"
-                    sh "docker build -t ${imageTag} -t ${latestTag} ."
+                    echo "Construction de l'image Docker: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+                    docker.build("${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}")
                 }
             }
         }
@@ -63,17 +63,11 @@ pipeline {
         stage('Push Image Docker') {
             steps {
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'docker-registry-credentials', 
-                                                     usernameVariable: 'DOCKER_USER', 
-                                                     passwordVariable: 'DOCKER_PASS')]) {
-                        sh "echo ${DOCKER_PASS} | docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} --password-stdin"
-                        
-                        def imageTag = "${IMAGE_NAME}:${IMAGE_TAG}"
-                        def latestTag = "${IMAGE_NAME}:latest"
-                        
-                        echo "Publication de l'image Docker dans le registre..."
-                        sh "docker push ${imageTag}"
-                        sh "docker push ${latestTag}"
+                    echo "Publication de l'image Docker dans le registre..."
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-registry-credentials') {
+                        docker.image("${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}").push()
+                        // Tag également comme 'latest'
+                        docker.image("${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}").push('latest')
                     }
                 }
             }
