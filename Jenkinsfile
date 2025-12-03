@@ -7,7 +7,7 @@ pipeline {
     
     environment {
         DOCKER_REGISTRY = 'docker.io' // Modifier selon votre registre (docker.io pour Docker Hub)
-        IMAGE_NAME = 'khalilhl/student-management'
+        IMAGE_NAME = 'khalilhlila/student-management'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
         PUSH_DOCKER = 'true' // Mettre à 'true' pour activer le push Docker (nécessite credentials)
     }
