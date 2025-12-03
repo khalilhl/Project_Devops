@@ -15,6 +15,7 @@ pipeline {
     triggers {
         // Vérifie les changements Git toutes les minutes
         // Le pipeline se déclenchera automatiquement à chaque nouveau commit
+         // Le pipeline se déclenchera automatiquement à chaque nouveau commit
         pollSCM('* * * * *')
     }
     
