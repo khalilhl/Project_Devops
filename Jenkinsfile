@@ -22,9 +22,8 @@ pipeline {
                 script {
                     echo 'Récupération des dernières mises à jour du dépôt Git...'
                 }
-                git branch: 'master',
-                    url: 'https://github.com/khalilhl/Project_Devops.git',
-                    credentialsId: 'jenkins-github-credentials'
+                // Utilise checkout scm car le pipeline est configuré avec "Pipeline script from SCM"
+                checkout scm
             }
         }
         
