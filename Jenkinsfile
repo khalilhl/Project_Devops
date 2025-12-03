@@ -12,9 +12,11 @@ pipeline {
         PUSH_DOCKER = 'false' // Mettre à 'true' pour activer le push Docker (nécessite credentials)
     }
     
-    // Pas de section triggers nécessaire pour les webhooks GitHub
-    // Les webhooks sont configurés côté GitHub et dans la configuration du job Jenkins
-    // (Build Triggers -> GitHub hook trigger for GITScm polling)
+    triggers {
+        // Vérifie les changements Git toutes les minutes
+        // Le pipeline se déclenchera automatiquement à chaque nouveau commit
+        pollSCM('* * * * *')
+    }
     
     stages {
         stage('GIT - Récupération du code') {
