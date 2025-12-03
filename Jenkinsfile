@@ -3,49 +3,58 @@ pipeline {
     
     tools {
         maven 'M2_HOME'
+        jdk 'JDK17'
     }
     
     environment {
-        DOCKER_REGISTRY = 'docker.io' // Modifier selon votre registre (Docker Hub, GitLab Registry, etc.)
-        DOCKER_IMAGE_NAME = 'khalilhl/student-management'
-        DOCKER_CREDENTIALS_ID = 'docker-credentials' // ID des credentials Docker dans Jenkins
+        DOCKER_REGISTRY = 'docker.io' // Modifier selon votre registre (docker.io pour Docker Hub)
+        IMAGE_NAME = 'khalilhl/student-management'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
     }
     
-    // Triggers commentés pour utiliser les webhooks GitHub avec NGROK
-    // Décommentez la section ci-dessous si vous préférez utiliser le polling SCM
-    /*
-    triggers {
-        // Vérifie les changements Git toutes les minutes
-        pollSCM('* * * * *')
-    }
-    */
+    // Pas de section triggers nécessaire pour les webhooks GitHub
+    // Les webhooks sont configurés côté GitHub et dans la configuration du job Jenkins
+    // (Build Triggers -> GitHub hook trigger for GITScm polling)
     
     stages {
-        stage('Checkout') {
+        stage('GIT - Récupération du code') {
             steps {
-                echo 'Récupération du code depuis Git...'
-                checkout scm
+                script {
+                    echo 'Récupération des dernières mises à jour du dépôt Git...'
+                }
+                git branch: 'master',
+                    url: 'https://github.com/khalilhl/Project_Devops.git',
+                    credentialsId: 'jenkins-github-credentials'
             }
         }
         
-        stage('Build') {
+        stage('Build Maven - Nettoyage et Construction') {
             steps {
-                echo 'Nettoyage et reconstruction du projet...'
-                sh 'mvn clean package -DskipTests'
+                script {
+                    echo 'Nettoyage et reconstruction du projet Maven avec tests...'
+                }
+                sh 'mvn clean package'
             }
             post {
                 success {
-                    echo 'Build réussi! ✅'
+                    echo 'Build Maven réussi!'
                     archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                }
+                failure {
+                    echo 'Échec du build Maven!'
+                }
+                always {
+                    // Publication des rapports de tests
+                    junit 'target/surefire-reports/*.xml'
                 }
             }
         }
         
-        stage('Build Docker Image') {
+        stage('Build Image Docker') {
             steps {
                 script {
-                    def imageTag = "${env.DOCKER_IMAGE_NAME}:${env.BUILD_NUMBER}"
-                    def latestTag = "${env.DOCKER_IMAGE_NAME}:latest"
+                    def imageTag = "${IMAGE_NAME}:${IMAGE_TAG}"
+                    def latestTag = "${IMAGE_NAME}:latest"
                     
                     echo "Construction de l'image Docker: ${imageTag}"
                     sh "docker build -t ${imageTag} -t ${latestTag} ."
@@ -53,18 +62,18 @@ pipeline {
             }
         }
         
-        stage('Push Docker Image') {
+        stage('Push Image Docker') {
             steps {
                 script {
-                    withCredentials([usernamePassword(credentialsId: "${env.DOCKER_CREDENTIALS_ID}", 
+                    withCredentials([usernamePassword(credentialsId: 'docker-registry-credentials', 
                                                      usernameVariable: 'DOCKER_USER', 
                                                      passwordVariable: 'DOCKER_PASS')]) {
-                        sh "echo ${env.DOCKER_PASS} | docker login ${env.DOCKER_REGISTRY} -u ${env.DOCKER_USER} --password-stdin"
+                        sh "echo ${DOCKER_PASS} | docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} --password-stdin"
                         
-                        def imageTag = "${env.DOCKER_IMAGE_NAME}:${env.BUILD_NUMBER}"
-                        def latestTag = "${env.DOCKER_IMAGE_NAME}:latest"
+                        def imageTag = "${IMAGE_NAME}:${IMAGE_TAG}"
+                        def latestTag = "${IMAGE_NAME}:latest"
                         
-                        echo "Publication de l'image Docker: ${imageTag}"
+                        echo "Publication de l'image Docker dans le registre..."
                         sh "docker push ${imageTag}"
                         sh "docker push ${latestTag}"
                     }
@@ -74,16 +83,14 @@ pipeline {
     }
     
     post {
-        always {
-            echo 'Pipeline terminé.'
-            cleanWs()
-        }
         success {
-            echo 'Pipeline réussi! ✅'
+            echo 'Pipeline exécuté avec succès!'
         }
         failure {
-            echo 'Pipeline échoué! ❌'
+            echo 'Pipeline échoué!'
+        }
+        always {
+            cleanWs()
         }
     }
 }
-
