@@ -11,10 +11,14 @@ pipeline {
         DOCKER_CREDENTIALS_ID = 'docker-credentials' // ID des credentials Docker dans Jenkins
     }
     
+    // Triggers commentés pour utiliser les webhooks GitHub avec NGROK
+    // Décommentez la section ci-dessous si vous préférez utiliser le polling SCM
+    /*
     triggers {
         // Vérifie les changements Git toutes les minutes
         pollSCM('* * * * *')
     }
+    */
     
     stages {
         stage('Checkout') {
