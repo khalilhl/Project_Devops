@@ -7,3 +7,11 @@ L’objectif principal est de permettre aux étudiants de configurer un pipeline
 
 ## 👤 Auteur
 ESPRIT - UP ASI - Alaa RAMI  
+
+## 🚀 Pipeline CI/CD
+Ce projet utilise un pipeline Jenkins automatisé avec webhooks GitHub pour :
+- ✅ Détection automatique des changements (webhooks)
+- ✅ Build Maven automatique
+- ✅ Construction et publication d'images Docker
+
+**Dernier test webhook** : 2025-12-03
