@@ -89,7 +89,7 @@ pipeline {
             echo 'Pipeline exécuté avec succès!'
         }
         failure {
-            echo 'Pipeline échoué!'
+            echo 'Pipeline échouée!'
         }
         always {
             cleanWs()
