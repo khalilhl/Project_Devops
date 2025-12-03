@@ -14,11 +14,6 @@ pipeline {
             }
         }
         
-        stage('MAVEN') {
-            steps {
-                sh "mvn -version"
-            }
-        }
     }
 }
 
