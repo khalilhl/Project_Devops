@@ -2,10 +2,12 @@ pipeline {
     agent any
     
     tools {
-        maven 'M2_HOME'
+        maven 'Maven'
+        jdk 'JDK17'
     }
     
     environment {
+        SONAR_TOKEN = credentials('sonar-token')
         DOCKER_REGISTRY = 'docker.io' // Modifier selon votre registre (docker.io pour Docker Hub)
         IMAGE_NAME = 'khalilhlila/student-management'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
@@ -27,6 +29,23 @@ pipeline {
                 }
                 // Utilise checkout scm car le pipeline est configuré avec "Pipeline script from SCM"
                 checkout scm
+            }
+        }
+        
+        stage('Build & Test') {
+            steps {
+                sh 'mvn clean verify'
+            }
+        }
+        
+        stage('SonarQube Analysis') {
+            steps {
+                sh """
+                mvn sonar:sonar \
+                -Dsonar.projectKey=my-project \
+                -Dsonar.host.url=http://192.168.50.4:9000 \
+                -Dsonar.login=$SONAR_TOKEN
+                """
             }
         }
         
