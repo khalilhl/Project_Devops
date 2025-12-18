@@ -1,116 +1,128 @@
 pipeline {
     agent any
-    
+
     tools {
-        maven 'M2_HOME'
-        jdk 'JAVA_HOME'
+        maven 'M2_HOME'      // Ton installation Maven dans Jenkins
+        jdk 'JAVA_HOME'       // Ton JDK installé dans Jenkins
     }
-    
+
     environment {
         SONAR_TOKEN = credentials('sonar-token')
-        DOCKER_REGISTRY = 'docker.io' // Modifier selon votre registre (docker.io pour Docker Hub)
-        IMAGE_NAME = 'khalilhlila/student-management'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
-        PUSH_DOCKER = 'true' // Mettre à 'true' pour activer le push Docker (nécessite credentials)
+        DOCKER_REGISTRY = 'docker.io'   // Docker Hub
+        DOCKER_IMAGE_NAME = 'khalilhlila/student-management'
+        DOCKER_IMAGE_TAG = "${env.BUILD_NUMBER}"
     }
-    
+
     triggers {
-        // Vérifie les changements Git toutes les minutes
-        // Le pipeline se déclenchera automatiquement à chaque nouveau commit
-         // Le pipeline se déclenchera automatiquement à chaque nouveau commit
-        pollSCM('* * * * *')
+        pollSCM('* * * * *')  // Vérifie les commits toutes les minutes
     }
-    
+
     stages {
+
         stage('GIT - Récupération du code') {
             steps {
                 script {
-                    echo 'Récupération des dernières mises à jour du dépôt Git...'
+                    echo 'Récupération du code depuis GitHub...'
+                    git branch: 'master',
+                        url: 'https://github.com/khalilhl/Project_Devops.git',
+                        credentialsId: 'jenkins-github-credentials'
+                    sh 'git log -1 --oneline'
                 }
-                // Utilise checkout scm car le pipeline est configuré avec "Pipeline script from SCM"
-                checkout scm
             }
         }
-        
-        stage('Build & Test') {
-            steps {
-                sh 'mvn clean verify'
-            }
-        }
-        
-        stage('SonarQube Analysis') {
-            steps {
-                sh """
-                mvn sonar:sonar \
-                -Dsonar.projectKey=my-project \
-                -Dsonar.host.url=http://192.168.50.4:9000 \
-                -Dsonar.login=$SONAR_TOKEN
-                """
-            }
-        }
-        
-        stage('Build Maven - Nettoyage et Construction') {
+
+        stage('Build - Compilation') {
             steps {
                 script {
-                    echo 'Nettoyage et reconstruction du projet Maven...'
-                    // Skip tests car MySQL n'est pas disponible dans l'environnement Jenkins
-                    sh 'mvn clean package -DskipTests'
+                    echo '⚙️ Compilation du projet Maven...'
+                    sh 'mvn clean compile'
+                }
+            }
+        }
+
+        stage('Tests') {
+            steps {
+                script {
+                    echo '🧪 Exécution des tests avec H2 (profil test)...'
+                    sh 'mvn test -Dspring.profiles.active=test'
+                }
+            }
+            post {
+                always {
+                    junit 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    echo '🔍 Analyse SonarQube...'
+                    sh """
+                    mvn sonar:sonar \
+                        -Dsonar.projectKey=my-project \
+                        -Dsonar.host.url=http://192.168.50.4:9000 \
+                        -Dsonar.login=$SONAR_TOKEN
+                    """
+                }
+            }
+        }
+
+        stage('Package - Création du JAR') {
+            steps {
+                script {
+                    echo '📦 Création du JAR...'
+                    sh 'mvn package -DskipTests'
                 }
             }
             post {
                 success {
-                    echo 'Build Maven réussi!'
                     archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
                 }
-                failure {
-                    echo 'Échec du build Maven!'
+            }
+        }
+
+        stage('Docker - Build de l\'image') {
+            steps {
+                script {
+                    echo "🐳 Construction de l'image Docker..."
+                    sh """
+                        docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} .
+                        docker tag ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ${DOCKER_IMAGE_NAME}:latest
+                    """
                 }
             }
         }
-        
-        stage('Build Image Docker') {
+
+        stage('Docker - Push vers le registre') {
             steps {
                 script {
-                    def imageTag = "${IMAGE_NAME}:${IMAGE_TAG}"
-                    def latestTag = "${IMAGE_NAME}:latest"
-                    
-                    echo "Construction de l'image Docker: ${imageTag}"
-                    sh "docker build -t ${imageTag} -t ${latestTag} ."
-                }
-            }
-        }
-        
-        stage('Push Image Docker') {
-            when {
-                expression { env.PUSH_DOCKER == 'true' }
-            }
-            steps {
-                script {
-                    echo "Publication de l'image Docker dans le registre..."
-                    withCredentials([usernamePassword(credentialsId: 'docker-registry-credentials', 
-                                                     usernameVariable: 'DOCKER_USER', 
-                                                     passwordVariable: 'DOCKER_PASS')]) {
-                        sh "echo ${DOCKER_PASS} | docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} --password-stdin"
-                        
-                        def imageTag = "${IMAGE_NAME}:${IMAGE_TAG}"
-                        def latestTag = "${IMAGE_NAME}:latest"
-                        
-                        sh "docker push ${imageTag}"
-                        sh "docker push ${latestTag}"
+                    echo "📤 Push de l'image Docker vers Docker Hub..."
+                    withCredentials([usernamePassword(credentialsId: 'docker-registry-credentials',
+                                                      usernameVariable: 'DOCKER_USER',
+                                                      passwordVariable: 'DOCKER_PASS')]) {
+                        sh """
+                            echo \$DOCKER_PASS | docker login ${DOCKER_REGISTRY} -u \$DOCKER_USER --password-stdin
+                            docker push ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}
+                            docker push ${DOCKER_IMAGE_NAME}:latest
+                        """
                     }
                 }
             }
         }
     }
-    
+
     post {
         success {
-            echo 'Pipeline exécuté avec succès!'
+            echo '✅ Pipeline exécuté avec succès!'
+            echo "✅ Image Docker construite: ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+            echo "✅ Image Docker construite: ${DOCKER_IMAGE_NAME}:latest"
         }
         failure {
-            echo 'Pipeline échouée!'
+            echo '❌ Pipeline échoué. Vérifiez les logs pour plus de détails.'
         }
         always {
+            echo '🧹 Nettoyage du workspace...'
             cleanWs()
         }
     }
