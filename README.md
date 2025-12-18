@@ -1,4 +1,4 @@
-# Projet Spring Boot – Jenkins CI/CDDD
+# Projet Spring Boot – Jenkins CI/CDD
 
 ## 📌 Descriptions
 Ce dépôt contient un projet **Spring Boot** utilisé dans le cadre du module **DevOps**.  
